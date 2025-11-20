@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">appdocu</string>
+    <!-- Replace the following placeholders with your Facebook app values -->
+    <string name="facebook_app_id">YOUR_FACEBOOK_APP_ID</string>
+    <string name="facebook_app_name">YOUR_FACEBOOK_APP_NAME</string>
+</resources>
