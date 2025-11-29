@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "914000987936",
+    "project_id": "appdocu1-993dc",
+    "storage_bucket": "appdocu1-993dc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:914000987936:android:117365196a9eb9fe0cb945",
+        "android_client_info": {
+          "package_name": "com.example.appdocu1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDy7KOZ9IIaBPkYqfhOjqkJTfYJj1K6Dj0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Products - Firebase</title>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .product {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .product h3 {
+            margin-top: 0;
+        }
+        .product-info {
+            margin: 5px 0;
+            font-family: monospace;
+        }
+        .delete-btn {
+            background-color: #d9534f;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .delete-btn:hover {
+            background-color: #c9302c;
+        }
+        #currentUser {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Debug Products & Delete Tool</h1>
+    
+    <div id="currentUser">
+        <strong>Current User:</strong> <span id="userInfo">Loading...</span>
+    </div>
+    
+    <div id="products">Loading products...</div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAYOUoDBTFc4PuOIeOU-w3wIPo2mj_Voys",
+            authDomain: "appdocu1-993dc.firebaseapp.com",
+            projectId: "appdocu1-993dc",
+            storageBucket: "appdocu1-993dc.firebasestorage.app",
+            messagingSenderId: "914000987936",
+            appId: "1:914000987936:web:b93782cee0e8fc700cb945",
+            measurementId: "G-Q7JNGF4RYZ"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        // Display current user
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                document.getElementById('userInfo').innerHTML = `
+                    <strong>Email:</strong> ${user.email}<br>
+                    <strong>UID:</strong> ${user.uid}
+                `;
+            } else {
+                document.getElementById('userInfo').textContent = 'Not logged in';
+            }
+        });
+
+        // Load products
+        async function loadProducts() {
+            const productsDiv = document.getElementById('products');
+            productsDiv.innerHTML = '<p>Loading...</p>';
+
+            try {
+                const snapshot = await db.collection('products').get();
+                
+                if (snapshot.empty) {
+                    productsDiv.innerHTML = '<p>No products found.</p>';
+                    return;
+                }
+
+                productsDiv.innerHTML = '';
+                
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const productDiv = document.createElement('div');
+                    productDiv.className = 'product';
+                    
+                    productDiv.innerHTML = `
+                        <h3>${data.title || 'No title'}</h3>
+                        <div class="product-info"><strong>ID:</strong> ${doc.id}</div>
+                        <div class="product-info"><strong>Owner ID:</strong> "${data.ownerId}" (length: ${(data.ownerId || '').length})</div>
+                        <div class="product-info"><strong>Owner Name:</strong> ${data.ownerName}</div>
+                        <div class="product-info"><strong>Status:</strong> ${data.status}</div>
+                        <div class="product-info"><strong>Created:</strong> ${new Date(data.createdAt).toLocaleString()}</div>
+                        <button class="delete-btn" onclick="deleteProduct('${doc.id}', '${(data.title || '').replace(/'/g, "\\'")}')">
+                            🗑️ Delete this product
+                        </button>
+                    `;
+                    
+                    productsDiv.appendChild(productDiv);
+                });
+            } catch (error) {
+                productsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                console.error('Error loading products:', error);
+            }
+        }
+
+        // Delete product
+        async function deleteProduct(productId, title) {
+            if (!confirm(`Bạn có chắc muốn xóa sản phẩm "${title}"?`)) {
+                return;
+            }
+
+            try {
+                await db.collection('products').doc(productId).delete();
+                alert(`Đã xóa sản phẩm: ${title}`);
+                loadProducts(); // Reload
+            } catch (error) {
+                alert(`Lỗi khi xóa: ${error.message}`);
+                console.error('Delete error:', error);
+            }
+        }
+
+        // Load on page load
+        loadProducts();
+    </script>
+</body>
+</html>

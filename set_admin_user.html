@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Set Admin User</title>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+  <h1>Set Admin User</h1>
+  <div id="status">Loading...</div>
+  
+  <div id="userList"></div>
+  
+  <script type="module">
+    // Firebase configuration - THAY ĐỔI theo config của bạn
+    const firebaseConfig = {
+      apiKey: "AIzaSyAYOUoDBTFc4PuOIeOU-w3wIPo2mj_Voys",
+      authDomain: "appdocu1-993dc.firebaseapp.com",
+      projectId: "appdocu1-993dc",
+      storageBucket: "appdocu1-993dc.firebasestorage.app",
+      messagingSenderId: "914000987936",
+      appId: "1:914000987936:web:b93782cee0e8fc700cb945",
+      measurementId: "G-Q7JNGF4RYZ"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // Load all users
+    async function loadUsers() {
+      try {
+        const snapshot = await db.collection('users').get();
+        const userListDiv = document.getElementById('userList');
+        userListDiv.innerHTML = '<h2>Chọn user để set admin:</h2>';
+
+        if (snapshot.empty) {
+          userListDiv.innerHTML += '<p>Không có user nào trong database</p>';
+          return;
+        }
+
+        snapshot.forEach((doc) => {
+          const user = doc.data();
+          const userDiv = document.createElement('div');
+          userDiv.style.padding = '10px';
+          userDiv.style.margin = '10px';
+          userDiv.style.border = '1px solid #ccc';
+          userDiv.style.borderRadius = '5px';
+          userDiv.style.backgroundColor = user.isAdmin ? '#e8f5e9' : '#fff';
+          
+          userDiv.innerHTML = `
+            <p><strong>${user.displayName}</strong> (${user.email})</p>
+            <p>UID: ${user.uid}</p>
+            <p>Status: ${user.isAdmin ? '<span style="color: green">✓ ADMIN</span>' : '<span style="color: gray">User</span>'}</p>
+            <button onclick="setAdmin('${user.uid}', ${!user.isAdmin})">
+              ${user.isAdmin ? 'Gỡ admin' : 'Đặt làm admin'}
+            </button>
+          `;
+          
+          userListDiv.appendChild(userDiv);
+        });
+
+        document.getElementById('status').textContent = `Tìm thấy ${snapshot.size} users`;
+      } catch (error) {
+        console.error('Error loading users:', error);
+        document.getElementById('status').textContent = 'Error: ' + error.message;
+      }
+    }
+
+    // Set admin function
+    window.setAdmin = async function(userId, isAdmin) {
+      try {
+        await db.collection('users').doc(userId).update({
+          isAdmin: isAdmin
+        });
+        
+        alert(isAdmin ? 'Đã cấp quyền admin!' : 'Đã gỡ quyền admin!');
+        loadUsers(); // Reload
+      } catch (error) {
+        console.error('Error setting admin:', error);
+        alert('Error: ' + error.message);
+      }
+    };
+
+    // Load users on page load
+    loadUsers();
+  </script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    button {
+      padding: 8px 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    #status {
+      padding: 10px;
+      background-color: #f0f0f0;
+      border-radius: 4px;
+      margin-bottom: 20px;
+    }
+  </style>
+</body>
+</html>
