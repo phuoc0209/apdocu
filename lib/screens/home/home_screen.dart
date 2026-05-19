@@ -36,13 +36,8 @@ class _HomeScreenState extends State<HomeScreen> {
       'value': ProductCategory.homeAppliances,
     },
     {
-      'icon': Icons.child_care_outlined,
-      'label': 'Trẻ em',
-      'value': ProductCategory.other,
-    },
-    {
       'icon': Icons.sports_esports_outlined,
-      'label': 'Giải trí',
+      'label': 'khác',
       'value': ProductCategory.other,
     },
   ];
@@ -79,23 +74,55 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    lp.translate('home'),
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: _textMuted,
-                          fontSize: 16,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              lp.translate('home'),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyLarge
+                                  ?.copyWith(
+                                    color: _textMuted,
+                                    fontSize: 16,
+                                  ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              lp.translate('app_name'),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineSmall
+                                  ?.copyWith(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                          ],
                         ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    lp.translate('app_name'),
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
+                      ),
+                      const SizedBox(width: 12),
+                      Material(
+                        color: Colors.white,
+                        shape: const CircleBorder(),
+                        elevation: 3,
+                        shadowColor: Colors.black.withOpacity(0.08),
+                        child: IconButton(
+                          tooltip: 'Thông báo',
+                          icon: const Icon(
+                            Icons.notifications_none_rounded,
+                            color: _primaryColor,
+                          ),
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/notifications');
+                          },
                         ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 18),
-                  _buildSearchBar(context),
                   const SizedBox(height: 20),
                   _buildCategoryTabs(),
                 ],
@@ -107,8 +134,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 decoration: const BoxDecoration(
                   color: Colors.transparent,
                 ),
-                child: StreamBuilder<List<ProductModel>>(
-                  stream: _productService.getApprovedProducts(),
+                child: FutureBuilder<List<ProductModel>>(
+                  future: _productService.getApprovedProducts(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
@@ -233,7 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildCategoryTabs() {
     return SizedBox(
-      height: 68,
+      height: 88,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: _categories.length,
@@ -248,38 +275,45 @@ class _HomeScreenState extends State<HomeScreen> {
                 _selectedCategory = isSelected ? null : category['value'];
               });
             },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: isSelected ? _primaryColor : Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(isSelected ? 0.15 : 0.06),
-                    blurRadius: isSelected ? 16 : 10,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    category['icon'],
-                    size: 22,
-                    color: isSelected ? Colors.white : _primaryColor,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    category['label'],
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: isSelected ? Colors.white : Colors.black87,
+            child: SizedBox(
+              width: 110,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isSelected ? _primaryColor : Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          Colors.black.withOpacity(isSelected ? 0.15 : 0.06),
+                      blurRadius: isSelected ? 16 : 10,
+                      offset: const Offset(0, 6),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      category['icon'],
+                      size: 22,
+                      color: isSelected ? Colors.white : _primaryColor,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      category['label'],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );

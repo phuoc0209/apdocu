@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/user_model.dart';
 import '../../services/admin_service.dart';
 import '../../services/auth_service.dart';
@@ -25,7 +24,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Future<void> _checkAdminStatus() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = _authService.currentUser;
     if (currentUser != null) {
       final isAdmin = await _adminService.isAdmin(currentUser.uid);
       setState(() => _isCurrentUserAdmin = isAdmin);
@@ -65,8 +64,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ),
         ),
       ),
-      body: StreamBuilder<List<UserModel>>(
-        stream: _adminService.getAllUsers(),
+      body: FutureBuilder<List<UserModel>>(
+        future: _adminService.getAllUsers(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(child: Text('Lỗi: ${snapshot.error}'));
@@ -84,7 +83,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             itemBuilder: (context, index) {
               final user = users[index];
               final isCurrentUser =
-                  user.uid == FirebaseAuth.instance.currentUser?.uid;
+                  user.uid == _authService.currentUser?.uid;
 
               return Container(
                 margin: const EdgeInsets.symmetric(vertical: 6),

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import '../../models/user_model.dart';
 import '../../models/product_model.dart';
+import '../../models/seller_review_model.dart';
 import '../../services/auth_service.dart';
-import '../../services/firestore_image_service.dart';
 import '../../services/product_service.dart';
+import '../../services/seller_review_service.dart';
 import '../../utils/language_provider.dart';
 
 class AccountScreen extends StatefulWidget {
@@ -20,9 +20,9 @@ class AccountScreen extends StatefulWidget {
 
 class _AccountScreenState extends State<AccountScreen> {
   final AuthService _authService = AuthService();
-  final FirestoreImageService _imageService = FirestoreImageService();
   final ProductService _productService = ProductService();
-  final User? _currentUser = FirebaseAuth.instance.currentUser;
+  final SellerReviewService _sellerReviewService = SellerReviewService();
+  UserModel? _currentUser;
   UserModel? _userData;
   String? _profileImageUrl;
   String? _highlightImageUrl;
@@ -31,10 +31,12 @@ class _AccountScreenState extends State<AccountScreen> {
   List<ProductModel> _userProducts = [];
   Map<ProductCategory, List<ProductModel>> _groupedProducts = {};
   int _totalViews = 0;
+  List<SellerReview> _sellerReviews = [];
 
   @override
   void initState() {
     super.initState();
+    _currentUser = _authService.currentUser;
     _loadUserData();
   }
 
@@ -50,17 +52,10 @@ class _AccountScreenState extends State<AccountScreen> {
     try {
       final data = await _authService.getUserData(_currentUser!.uid);
 
-      String? imageUrl;
-      try {
-        imageUrl = await _imageService.getProfileImage(_currentUser!.uid);
-      } catch (e) {
-        debugPrint('Error loading profile image: $e');
-      }
-
       if (!mounted) return;
       setState(() {
         _userData = data;
-        _profileImageUrl = imageUrl;
+        _profileImageUrl = data?.photoURL;
         _isLoadingProfile = false;
       });
     } finally {
@@ -79,8 +74,7 @@ class _AccountScreenState extends State<AccountScreen> {
     setState(() => _isLoadingProducts = true);
 
     try {
-      final productsStream = _productService.getUserProducts(_currentUser!.uid);
-      final products = await productsStream.first;
+      final products = await _productService.getUserProducts(_currentUser!.uid);
 
       final Map<ProductCategory, List<ProductModel>> grouped = {};
       for (final product in products) {
@@ -97,12 +91,17 @@ class _AccountScreenState extends State<AccountScreen> {
 
       final totalViews = products.fold<int>(0, (sum, p) => sum + p.viewCount);
 
+      // Load seller reviews for this user
+      final reviews =
+          await _sellerReviewService.getReviewsForSeller(_currentUser!.uid);
+
       if (!mounted) return;
       setState(() {
         _userProducts = products;
         _groupedProducts = grouped;
         _highlightImageUrl = highlight;
         _totalViews = totalViews;
+        _sellerReviews = reviews;
         _isLoadingProducts = false;
       });
     } catch (e) {
@@ -402,8 +401,8 @@ class _AccountScreenState extends State<AccountScreen> {
         labelStyle: const TextStyle(fontWeight: FontWeight.w600),
         tabs: [
           Tab(text: lp.translate('home')), // Overview
-          const Tab(text: 'Courses'),
-          const Tab(text: 'Review'),
+          const Tab(text: 'sản phẩm đã đăng'), // Courses
+          const Tab(text: 'đánh giá'), // Review
         ],
       ),
     );
@@ -468,26 +467,189 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   Widget _buildReviewTab() {
-    return Center(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: const [
-          Icon(Icons.rate_review_outlined, size: 48, color: Color(0xFF6C63FF)),
-          SizedBox(height: 16),
-          Text(
-            'Chưa có đánh giá nào',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF2E335A),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Card tổng quan điểm đánh giá người bán (đồng bộ với hồ sơ công khai)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 14,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Đánh giá người bán',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF8389A8),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          _userData!.sellerRatingCount == 0
+                              ? '-'
+                              : _userData!.sellerRatingAverage
+                                  .toStringAsFixed(1),
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF2E335A),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(
+                          Icons.star_rounded,
+                          color: Color(0xFFFFC857),
+                          size: 24,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _userData!.sellerRatingCount == 0
+                          ? 'Chưa có đánh giá'
+                          : '${_userData!.sellerRatingCount} đánh giá',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF8389A8),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          SizedBox(height: 8),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 48),
-            child: Text(
-              'Khi có phản hồi từ người dùng, chúng sẽ hiển thị tại đây.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF8389A8)),
+          const SizedBox(height: 24),
+          if (_sellerReviews.isEmpty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 48),
+                child: Text(
+                  'Chưa có đánh giá nào cho bạn. Khi người khác đánh giá, chúng sẽ hiển thị tại đây.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFF8389A8)),
+                ),
+              ),
+            )
+          else
+            Column(
+              children: _sellerReviews
+                  .map((review) => Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: _buildSellerReviewTile(review),
+                      ))
+                  .toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSellerReviewTile(SellerReview review) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: const Color(0xFFE0E3FF),
+                child: Text(
+                  review.buyerName.isNotEmpty
+                      ? review.buyerName[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF4A4FB0),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      review.buyerName,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2E335A),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        ...List.generate(
+                          review.rating,
+                          (index) => const Icon(
+                            Icons.star_rounded,
+                            size: 16,
+                            color: Color(0xFFFFC857),
+                          ),
+                        ),
+                        ...List.generate(
+                          5 - review.rating,
+                          (index) => const Icon(
+                            Icons.star_border_rounded,
+                            size: 16,
+                            color: Color(0xFFFFC857),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          DateFormat('dd/MM/yyyy').format(review.createdAt),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF9AA0C2),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            review.comment,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF4C4F6B),
             ),
           ),
         ],

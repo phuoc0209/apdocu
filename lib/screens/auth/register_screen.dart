@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/auth_clippers.dart';
 
@@ -74,16 +73,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/main');
       }
-    } on FirebaseAuthException catch (e) {
-      String message = 'Đăng ký thất bại';
-      if (e.code == 'weak-password') {
-        message = 'Mật khẩu quá yếu';
-      } else if (e.code == 'email-already-in-use') {
-        message = 'Email đã được sử dụng';
-      } else if (e.code == 'invalid-email') {
-        message = 'Email không hợp lệ';
-      }
-
+    } catch (e) {
+      String message = 'Đăng ký thất bại: ${e.toString().replaceAll('Exception: ', '')}';
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),

@@ -1,65 +1,40 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import 'api_service.dart';
 
 class AdminService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ApiService _apiService = ApiService();
 
   /// Kiểm tra user có phải admin không
   Future<bool> isAdmin(String userId) async {
-    try {
-      final doc = await _firestore.collection('users').doc(userId).get();
-      return doc.data()?['isAdmin'] ?? false;
-    } catch (e) {
-      print('Error checking admin: $e');
-      return false;
-    }
+    // TODO: Implement API endpoint
+    // final response = await _apiService.get('users/is_admin.php?userId=$userId');
+    // return response['isAdmin'] ?? false;
+    return false; 
   }
 
   /// Set user làm admin (chỉ admin mới làm được)
   Future<void> setAdmin(String userId, bool isAdmin) async {
-    try {
-      await _firestore.collection('users').doc(userId).update({
-        'isAdmin': isAdmin,
-      });
-      print('Set admin status for $userId: $isAdmin');
-    } catch (e) {
-      print('Error setting admin: $e');
-      rethrow;
-    }
+    // TODO: Implement API endpoint
+    // await _apiService.post('admin/set_admin.php', {'userId': userId, 'isAdmin': isAdmin});
   }
 
   /// Lấy danh sách tất cả users (admin only)
-  Stream<List<UserModel>> getAllUsers() {
-    return _firestore
-        .collection('users')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => UserModel.fromDocument(doc))
-            .toList());
+  Future<List<UserModel>> getAllUsers() async {
+    // TODO: Implement API endpoint
+    // final response = await _apiService.get('admin/users.php');
+    // return (response as List).map((e) => UserModel.fromMap(e)).toList();
+    return [];
   }
 
   /// Ban user (admin only)
   Future<void> banUser(String userId) async {
-    try {
-      await _firestore.collection('users').doc(userId).update({
-        'isBanned': true,
-        'bannedAt': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      print('Error banning user: $e');
-      rethrow;
-    }
+    // TODO: Implement API endpoint
+    // await _apiService.post('admin/ban_user.php', {'userId': userId});
   }
 
   /// Unban user (admin only)
   Future<void> unbanUser(String userId) async {
-    try {
-      await _firestore.collection('users').doc(userId).update({
-        'isBanned': false,
-      });
-    } catch (e) {
-      print('Error unbanning user: $e');
-      rethrow;
-    }
+    // TODO: Implement API endpoint
+    // await _apiService.post('admin/unban_user.php', {'userId': userId});
   }
 }

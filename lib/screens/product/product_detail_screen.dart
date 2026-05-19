@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../models/product_model.dart';
+import '../../models/user_model.dart';
 import '../../models/comment_model.dart';
 import '../../services/product_service.dart';
 import '../../services/auth_service.dart';
@@ -32,11 +33,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   ProductModel? _product;
   bool _isLoading = true;
   bool _isFollowing = false;
-  final User? _currentUser = FirebaseAuth.instance.currentUser;
+  UserModel? _currentUser;
 
   @override
   void initState() {
     super.initState();
+    _currentUser = _authService.currentUser;
     _loadProduct();
   }
 
@@ -249,6 +251,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     }
   }
 
+  void _shareProduct() {
+    if (_product == null) return;
+
+    final product = _product!;
+    // Tạm thời dùng link dạng text đơn giản; sau này có thể thay bằng deep link/web URL thật.
+    final url = 'https://appdocu.example.com/product/${product.id}';
+    final text = 'Xem sản phẩm "${product.title}" tại: $url';
+
+    Share.share(text, subject: product.title);
+  }
+
   void _openFullScreenGallery(int initialIndex) {
     if (_product == null || _product!.imageUrls.isEmpty) return;
 
@@ -342,11 +355,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           const Spacer(),
           _buildCircleIconButton(
             icon: Icons.share_outlined,
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tính năng chia sẻ sẽ sớm có mặt.')),
-              );
-            },
+            onPressed: _shareProduct,
           ),
           const SizedBox(width: 12),
           if (isOwner)
@@ -519,7 +528,79 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 20),
+          _buildOwnerInfo(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildOwnerInfo() {
+    if (_product == null) return const SizedBox.shrink();
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushNamed(
+          context,
+          '/public-profile',
+          arguments: _product!.ownerId,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: const Color(0xFFE0E3FF),
+              backgroundImage: _product!.ownerPhotoURL != null &&
+                      _product!.ownerPhotoURL!.isNotEmpty
+                  ? NetworkImage(_product!.ownerPhotoURL!)
+                  : null,
+              child: (_product!.ownerPhotoURL == null ||
+                      _product!.ownerPhotoURL!.isEmpty)
+                  ? Text(
+                      _product!.ownerName.isNotEmpty
+                          ? _product!.ownerName[0].toUpperCase()
+                          : '?',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF4A4FB0),
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _product!.ownerName,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2E335A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Xem hồ sơ người bán',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF6B6F8D),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFF9AA0C2),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -634,14 +715,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Widget _buildRatingRow() {
+    // Chỉ hiển thị lượt xem, bỏ phần sao đánh giá.
     return Row(
       children: [
-        ...List.generate(
-          4,
-          (index) => const Icon(Icons.star_rounded, size: 18, color: Color(0xFFFFC107)),
-        ),
-        const Icon(Icons.star_half_rounded, size: 18, color: Color(0xFFFFC107)),
-        const SizedBox(width: 8),
         Text(
           '${_product!.viewCount} lượt xem',
           style: const TextStyle(
@@ -803,8 +879,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Widget _buildReviewsTab(bool isOwner) {
-    return StreamBuilder<List<CommentModel>>(
-      stream: _productService.getProductComments(widget.productId),
+    return FutureBuilder<List<CommentModel>>(
+      future: _productService.getProductComments(widget.productId),
       builder: (context, snapshot) {
         final comments = snapshot.data ?? [];
 

@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class UserModel {
   final String uid;
   final String email;
@@ -12,6 +10,8 @@ class UserModel {
   final bool isAdmin;
   final DateTime createdAt;
   final DateTime? lastActive;
+  final double sellerRatingAverage;
+  final int sellerRatingCount;
 
   UserModel({
     required this.uid,
@@ -25,9 +25,11 @@ class UserModel {
     this.isAdmin = false,
     required this.createdAt,
     this.lastActive,
+    this.sellerRatingAverage = 0.0,
+    this.sellerRatingCount = 0,
   });
 
-  // Convert to Map for Firestore
+  // Convert to Map for API
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
@@ -41,10 +43,12 @@ class UserModel {
       'isAdmin': isAdmin,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'lastActive': lastActive?.millisecondsSinceEpoch,
+      'sellerRatingAverage': sellerRatingAverage,
+      'sellerRatingCount': sellerRatingCount,
     };
   }
 
-  // Create from Firestore document
+  // Create from JSON
   factory UserModel.fromMap(Map<String, dynamic> map) {
     return UserModel(
       uid: map['uid'] ?? '',
@@ -55,17 +59,17 @@ class UserModel {
       phoneNumber: map['phoneNumber'],
       followers: List<String>.from(map['followers'] ?? []),
       following: List<String>.from(map['following'] ?? []),
-      isAdmin: map['isAdmin'] ?? false,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
+      isAdmin: map['isAdmin'] == 1 || map['isAdmin'] == true, // Handle tinyint (1) or bool
+      createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] is int ? map['createdAt'] : int.parse(map['createdAt'].toString())),
       lastActive: map['lastActive'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(map['lastActive'])
+          ? DateTime.fromMillisecondsSinceEpoch(map['lastActive'] is int ? map['lastActive'] : int.parse(map['lastActive'].toString()))
           : null,
+      sellerRatingAverage:
+          (map['sellerRatingAverage'] is int)
+            ? (map['sellerRatingAverage'] as int).toDouble()
+            : (double.tryParse(map['sellerRatingAverage'].toString()) ?? 0.0),
+      sellerRatingCount: int.tryParse(map['sellerRatingCount'].toString()) ?? 0,
     );
-  }
-
-  factory UserModel.fromDocument(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return UserModel.fromMap(data);
   }
 
   UserModel copyWith({
@@ -80,6 +84,8 @@ class UserModel {
     bool? isAdmin,
     DateTime? createdAt,
     DateTime? lastActive,
+    double? sellerRatingAverage,
+    int? sellerRatingCount,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -93,6 +99,8 @@ class UserModel {
       isAdmin: isAdmin ?? this.isAdmin,
       createdAt: createdAt ?? this.createdAt,
       lastActive: lastActive ?? this.lastActive,
+      sellerRatingAverage: sellerRatingAverage ?? this.sellerRatingAverage,
+      sellerRatingCount: sellerRatingCount ?? this.sellerRatingCount,
     );
   }
 }

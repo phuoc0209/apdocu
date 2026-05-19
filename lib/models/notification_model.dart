@@ -6,6 +6,7 @@ enum AppNotificationType {
   postRejected,
   newFollower,
   newComment,
+  sellerReviewed,
 }
 
 class AppNotification {
@@ -76,6 +77,8 @@ class AppNotification {
         return AppNotificationType.newFollower;
       case 'newComment':
         return AppNotificationType.newComment;
+      case 'sellerReviewed':
+        return AppNotificationType.sellerReviewed;
       default:
         return AppNotificationType.postPending;
     }

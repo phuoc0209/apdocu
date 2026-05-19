@@ -1,16 +1,18 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import '../../models/notification_model.dart';
 import '../../services/notification_service.dart';
+import '../../services/auth_service.dart';
+import '../../utils/language_provider.dart';
 
 class NotificationScreen extends StatelessWidget {
   const NotificationScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final lp = LanguageProvider();
+    final user = AuthService().currentUser;
     if (user == null) {
       return const Scaffold(
         body: Center(child: Text('Vui lòng đăng nhập để xem thông báo')),
@@ -26,9 +28,9 @@ class NotificationScreen extends StatelessWidget {
         elevation: 0,
         foregroundColor: const Color(0xFF2E335A),
         centerTitle: true,
-        title: const Text(
-          'Thông báo',
-          style: TextStyle(
+        title: Text(
+          lp.translate('notifications'),
+          style: const TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 18,
           ),
@@ -38,15 +40,15 @@ class NotificationScreen extends StatelessWidget {
             onPressed: () {
               notificationService.markAllAsRead(user.uid);
             },
-            child: const Text(
-              'Đã đọc hết',
-              style: TextStyle(color: Color(0xFF6C63FF)),
+            child: Text(
+              lp.translate('mark_all_read'),
+              style: const TextStyle(color: Color(0xFF6C63FF)),
             ),
           ),
         ],
       ),
-      body: StreamBuilder<List<AppNotification>>(
-        stream: notificationService.getUserNotifications(user.uid),
+      body: FutureBuilder<List<AppNotification>>(
+        future: notificationService.getUserNotifications(user.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -59,13 +61,45 @@ class NotificationScreen extends StatelessWidget {
           final notifications = snapshot.data ?? [];
 
           if (notifications.isEmpty) {
-            return const Center(
+            return Center(
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 40),
-                child: Text(
-                  'Chưa có thông báo nào. Thông báo về bài đăng và tương tác sẽ hiển thị tại đây.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Color(0xFF8389A8)),
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF6C63FF).withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: const Icon(
+                        Icons.notifications_none_rounded,
+                        color: Color(0xFF6C63FF),
+                        size: 34,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      lp.translate('no_notifications_title'),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2E335A),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      lp.translate('no_notifications_body'),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF8389A8),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -103,6 +137,8 @@ class _NotificationTile extends StatelessWidget {
         return Icons.person_add_alt_1_rounded;
       case AppNotificationType.newComment:
         return Icons.chat_bubble_outline_rounded;
+      case AppNotificationType.sellerReviewed:
+        return Icons.star_rate_rounded;
     }
   }
 
@@ -118,12 +154,14 @@ class _NotificationTile extends StatelessWidget {
         return const Color(0xFF6C63FF);
       case AppNotificationType.newComment:
         return const Color(0xFF29B6F6);
+      case AppNotificationType.sellerReviewed:
+        return const Color(0xFFFFC857);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = AuthService().currentUser;
     final service = NotificationService();
 
     return InkWell(
@@ -131,7 +169,14 @@ class _NotificationTile extends StatelessWidget {
         if (user != null && !notification.isRead) {
           await service.markAsRead(user.uid, notification.id);
         }
-        // TODO: Điều hướng theo relatedProductId / relatedUserId nếu cần.
+        // Điều hướng theo loại thông báo
+        if (notification.relatedProductId != null) {
+          Navigator.pushNamed(
+            context,
+            '/product-detail',
+            arguments: notification.relatedProductId,
+          );
+        }
       },
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 6),

@@ -1,71 +1,88 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
+import 'api_service.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ApiService _apiService = ApiService();
+  UserModel? _currentUser;
+  final _authController = StreamController<UserModel?>.broadcast();
 
   // Get current user
-  User? get currentUser => _auth.currentUser;
+  UserModel? get currentUser => _currentUser;
 
   // Auth state changes stream
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  Stream<UserModel?> get authStateChanges => _authController.stream;
+
+  // Initialize - check if user is logged in
+  Future<void> initialize() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userData = prefs.getString('user_data');
+    if (userData != null) {
+      _currentUser = UserModel.fromMap(json.decode(userData));
+      _authController.add(_currentUser);
+    } else {
+      _authController.add(null);
+    }
+  }
 
   // Sign in with email and password
-  Future<UserCredential?> signInWithEmailPassword(
+  Future<UserModel?> signInWithEmailPassword(
       String email, String password) async {
     try {
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      
-      // Update last active
-      await _firestore.collection('users').doc(userCredential.user!.uid).update({
-        'lastActive': DateTime.now().millisecondsSinceEpoch,
+      final response = await _apiService.post('users/login.php', {
+        'email': email,
+        'password': password,
       });
+
+      _currentUser = UserModel.fromMap(response);
       
-      return userCredential;
-    } on FirebaseAuthException catch (e) {
-      print('Sign in error: ${e.message}');
+      // Save to local storage
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_data', json.encode(_currentUser!.toMap()));
+      
+      _authController.add(_currentUser);
+
+      return _currentUser;
+    } catch (e) {
+      print('Sign in error: $e');
       rethrow;
     }
   }
 
   // Register with email and password
-  Future<UserCredential?> registerWithEmailPassword(
+  Future<UserModel?> registerWithEmailPassword(
     String email,
     String password,
     String displayName,
   ) async {
     try {
-      UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final response = await _apiService.post('users/register.php', {
+        'email': email,
+        'password': password,
+        'displayName': displayName,
+      });
 
-      // Create user document in Firestore
-      UserModel newUser = UserModel(
-        uid: userCredential.user!.uid,
-        email: email,
-        displayName: displayName,
+      // The register API returns the created user data
+      _currentUser = UserModel(
+        uid: response['uid'],
+        email: response['email'],
+        displayName: response['displayName'],
         createdAt: DateTime.now(),
         lastActive: DateTime.now(),
       );
 
-      await _firestore
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set(newUser.toMap());
+      // Save to local storage (optional, or require login after register)
+      // For now, let's auto-login
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_data', json.encode(_currentUser!.toMap()));
+      
+      _authController.add(_currentUser);
 
-      // Update display name in Firebase Auth
-      await userCredential.user!.updateDisplayName(displayName);
-
-      return userCredential;
-    } on FirebaseAuthException catch (e) {
-      print('Registration error: ${e.message}');
+      return _currentUser;
+    } catch (e) {
+      print('Registration error: $e');
       rethrow;
     }
   }
@@ -73,113 +90,54 @@ class AuthService {
   // Sign out
   Future<void> signOut() async {
     try {
-      await _auth.signOut();
+      _currentUser = null;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('user_data');
+      _authController.add(null);
     } catch (e) {
       print('Sign out error: $e');
       rethrow;
     }
   }
 
-  // Get user data from Firestore
+  // Get user data (refresh from server)
   Future<UserModel?> getUserData(String uid) async {
-    try {
-      DocumentSnapshot doc =
-          await _firestore.collection('users').doc(uid).get();
-      if (doc.exists) {
-        return UserModel.fromDocument(doc);
-      }
-      return null;
-    } catch (e) {
-      print('Get user data error: $e');
-      return null;
+    // In a real app, we might have a specific endpoint to get user by ID
+    // For now, if it's the current user, return it.
+    if (_currentUser != null && _currentUser!.uid == uid) {
+      return _currentUser;
     }
+    return null;
   }
 
   // Update user profile
   Future<void> updateUserProfile(UserModel user) async {
-    try {
-      // Only update specific fields, not the entire document
-      await _firestore.collection('users').doc(user.uid).update({
-        'displayName': user.displayName,
-        'photoURL': user.photoURL,
-        'bio': user.bio,
-        'phoneNumber': user.phoneNumber,
-      });
-      
-      // Also update display name in Firebase Auth
-      if (_auth.currentUser != null) {
-        await _auth.currentUser!.updateDisplayName(user.displayName);
-        if (user.photoURL != null) {
-          await _auth.currentUser!.updatePhotoURL(user.photoURL);
-        }
-      }
-    } catch (e) {
-      print('Update user profile error: $e');
-      rethrow;
-    }
+    // TODO: Implement update profile API
+    // For now, just update local state
+    _currentUser = user;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_data', json.encode(_currentUser!.toMap()));
   }
 
   // Follow/Unfollow user
   Future<void> toggleFollow(String currentUserId, String targetUserId) async {
-    try {
-      final currentUserRef = _firestore.collection('users').doc(currentUserId);
-      final targetUserRef = _firestore.collection('users').doc(targetUserId);
-
-      await _firestore.runTransaction((transaction) async {
-        final currentUserDoc = await transaction.get(currentUserRef);
-        final targetUserDoc = await transaction.get(targetUserRef);
-
-        if (!currentUserDoc.exists || !targetUserDoc.exists) {
-          throw Exception('User not found');
-        }
-
-        final currentUser = UserModel.fromDocument(currentUserDoc);
-        final targetUser = UserModel.fromDocument(targetUserDoc);
-
-        List<String> currentUserFollowing = List.from(currentUser.following);
-        List<String> targetUserFollowers = List.from(targetUser.followers);
-
-        if (currentUserFollowing.contains(targetUserId)) {
-          // Unfollow
-          currentUserFollowing.remove(targetUserId);
-          targetUserFollowers.remove(currentUserId);
-        } else {
-          // Follow
-          currentUserFollowing.add(targetUserId);
-          targetUserFollowers.add(currentUserId);
-        }
-
-        transaction.update(currentUserRef, {'following': currentUserFollowing});
-        transaction.update(targetUserRef, {'followers': targetUserFollowers});
-      });
-    } catch (e) {
-      print('Toggle follow error: $e');
-      rethrow;
-    }
+    // TODO: Implement follow API
   }
 
   // Check if following
   Future<bool> isFollowing(String currentUserId, String targetUserId) async {
-    try {
-      final doc = await _firestore.collection('users').doc(currentUserId).get();
-      if (doc.exists) {
-        final user = UserModel.fromDocument(doc);
-        return user.following.contains(targetUserId);
-      }
-      return false;
-    } catch (e) {
-      print('Check following error: $e');
-      return false;
-    }
+    // TODO: Implement check follow API
+    return false;
   }
 
   // Reset password
   Future<void> resetPassword(String email) async {
-    try {
-      await _auth.sendPasswordResetEmail(email: email);
-    } catch (e) {
-      print('Reset password error: $e');
-      rethrow;
-    }
+    // TODO: Implement reset password API
+  }
+
+  // Update seller rating
+  Future<void> updateSellerRating(
+      String userId, double average, int count) async {
+    // TODO: Implement rating API
   }
 }

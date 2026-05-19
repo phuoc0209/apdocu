@@ -1,12 +1,12 @@
 import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import '../../models/message_model.dart';
+import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
 
@@ -24,12 +24,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final AuthService _authService = AuthService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final User? _currentUser = FirebaseAuth.instance.currentUser;
+  final UserModel? _currentUser = AuthService().currentUser;
   final ImagePicker _picker = ImagePicker();
 
   ChatModel? _chat;
   String? _otherUserName;
   String? _otherUserPhoto;
+  String? _otherUserId;
   bool _isSendingImage = false;
 
   @override
@@ -62,6 +63,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         _chat = chat;
         _otherUserName = chat.participantNames[otherUserId];
         _otherUserPhoto = chat.participantPhotos[otherUserId];
+        _otherUserId = otherUserId;
       });
     } catch (e) {
       debugPrint('Load chat info error: $e');
@@ -175,13 +177,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         crossAxisAlignment:
             isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          _buildMessageContent(
-            message: message,
-            isMe: isMe,
-            borderRadius: borderRadius,
-            bubbleColor: bubbleColor,
-            bubbleGradient: bubbleGradient,
-            theme: theme,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isMe) const SizedBox(width: 28),
+              _buildMessageContent(
+                message: message,
+                isMe: isMe,
+                borderRadius: borderRadius,
+                bubbleColor: bubbleColor,
+                bubbleGradient: bubbleGradient,
+                theme: theme,
+              ),
+              if (isMe) ...[
+                const SizedBox(width: 4),
+                _buildMessageMenuButton(message),
+              ],
+            ],
           ),
           const SizedBox(height: 6),
           Text(
@@ -193,6 +206,62 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMessageMenuButton(MessageModel message) {
+    return PopupMenuButton<String>(
+      padding: EdgeInsets.zero,
+      icon: const Icon(
+        Icons.more_vert,
+        size: 18,
+        color: Color(0xFF9AA0C2),
+      ),
+      onSelected: (value) async {
+        if (value == 'delete') {
+          final shouldDelete = await showDialog<bool>(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text('Xóa tin nhắn'),
+                content: const Text(
+                    'Bạn có chắc muốn xóa tin nhắn này không?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Hủy'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.red,
+                    ),
+                    child: const Text('Xóa'),
+                  ),
+                ],
+              );
+            },
+          );
+
+          if (shouldDelete == true) {
+            try {
+              await _chatService.deleteMessage(message.chatId, message.id);
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Không thể xóa: $e')),
+                );
+              }
+            }
+          }
+        }
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem<String>(
+          value: 'delete',
+          child: Text('Xóa tin nhắn'),
+        ),
+      ],
     );
   }
 
@@ -308,41 +377,52 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         titleSpacing: 0,
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 22,
-              backgroundColor: const Color(0xFFE1E5F8),
-              backgroundImage: _otherUserPhoto != null
-                  ? CachedNetworkImageProvider(_otherUserPhoto!)
-                  : null,
-              child: _otherUserPhoto == null
-                  ? const Icon(Icons.person, color: Color(0xFF6C63FF))
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  _otherUserName ?? 'Đang trò chuyện',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: const Color(0xFF2E335A),
-                    fontWeight: FontWeight.w600,
+        title: GestureDetector(
+          onTap: () {
+            if (_otherUserId != null) {
+              Navigator.pushNamed(
+                context,
+                '/public-profile',
+                arguments: _otherUserId,
+              );
+            }
+          },
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: const Color(0xFFE1E5F8),
+                backgroundImage: _otherUserPhoto != null
+                    ? CachedNetworkImageProvider(_otherUserPhoto!)
+                    : null,
+                child: _otherUserPhoto == null
+                    ? const Icon(Icons.person, color: Color(0xFF6C63FF))
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _otherUserName ?? 'Đang trò chuyện',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: const Color(0xFF2E335A),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Đang hoạt động',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFF9AA0C2),
-                    fontSize: 12,
+                  const SizedBox(height: 2),
+                  Text(
+                    'Đang hoạt động',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF9AA0C2),
+                      fontSize: 12,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
         actions: [
           IconButton(
@@ -358,8 +438,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         child: Column(
           children: [
             Expanded(
-              child: StreamBuilder<List<MessageModel>>(
-                stream: _chatService.getMessages(widget.chatId),
+              child: FutureBuilder<List<MessageModel>>(
+                future: _chatService.getMessages(widget.chatId),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());

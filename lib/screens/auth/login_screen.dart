@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/auth_clippers.dart';
 
@@ -73,15 +72,8 @@ class _LoginScreenState extends State<LoginScreen> {
           Navigator.pushReplacementNamed(context, '/main');
         }
       }
-    } on FirebaseAuthException catch (e) {
-      String message = 'Đăng nhập thất bại';
-      if (e.code == 'user-not-found') {
-        message = 'Email không tồn tại';
-      } else if (e.code == 'wrong-password') {
-        message = 'Mật khẩu không đúng';
-      } else if (e.code == 'invalid-email') {
-        message = 'Email không hợp lệ';
-      }
+    } catch (e) {
+      String message = 'Đăng nhập thất bại: ${e.toString().replaceAll('Exception: ', '')}';
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

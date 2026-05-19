@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../models/message_model.dart';
+import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/chat_service.dart';
 import '../utils/language_provider.dart';
@@ -29,14 +29,14 @@ class _MainScreenState extends State<MainScreen> {
   final ChatService _chatService = ChatService();
   final AuthService _authService = AuthService();
   StreamSubscription<List<ChatModel>>? _chatSubscription;
-  StreamSubscription<User?>? _authSubscription;
+  StreamSubscription<UserModel?>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
     // Keep badge state synced with authentication and chat updates.
     _authSubscription =
-        FirebaseAuth.instance.authStateChanges().listen((user) {
+        _authService.authStateChanges.listen((user) {
       _chatSubscription?.cancel();
 
       if (user == null) {
@@ -51,6 +51,8 @@ class _MainScreenState extends State<MainScreen> {
         return;
       }
 
+      // TODO: Fix ChatService to work with new backend or disable chat for now
+      /*
       _chatSubscription = _chatService.getUserChats(user.uid).listen((chats) {
         final unread = chats.fold<int>(
           0,
@@ -61,6 +63,7 @@ class _MainScreenState extends State<MainScreen> {
           setState(() => _unreadMessages = unread);
         }
       });
+      */
 
       _loadAdminState(user.uid);
     });

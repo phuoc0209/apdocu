@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../utils/theme_notifier.dart';
 import '../../utils/language_provider.dart';
 import '../../services/admin_service.dart';
+import '../../services/auth_service.dart';
 import '../admin/user_management_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -15,6 +15,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final AdminService _adminService = AdminService();
+  final AuthService _authService = AuthService();
   bool _isDarkMode = false;
   String _selectedLanguage = 'vi';
   bool _isLoading = true;
@@ -28,7 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUser = _authService.currentUser;
     
     bool isAdmin = false;
     if (currentUser != null) {
@@ -73,7 +74,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
       
-      // Reload toàn bộ app để áp dụng ngôn ngữ mới
       Navigator.pushNamedAndRemoveUntil(context, '/main', (route) => false);
     }
   }
@@ -170,42 +170,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _changePassword(String currentPassword, String newPassword) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final user = _authService.currentUser;
       if (user == null) throw Exception('Chưa đăng nhập');
 
-      // Re-authenticate user
-      final credential = EmailAuthProvider.credential(
-        email: user.email!,
-        password: currentPassword,
-      );
+      // TODO: Implement change password via API
+      // await _authService.changePassword(currentPassword, newPassword);
       
-      await user.reauthenticateWithCredential(credential);
+      // For now, just simulate success or failure based on logic
+      // In a real app, this would be an API call
       
-      // Update password
-      await user.updatePassword(newPassword);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Đã đổi mật khẩu thành công'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      String message = 'Có lỗi xảy ra';
-      
-      if (e.code == 'wrong-password') {
-        message = 'Mật khẩu hiện tại không đúng';
-      } else if (e.code == 'weak-password') {
-        message = 'Mật khẩu quá yếu';
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: Colors.red,
+            content: Text('Tính năng đổi mật khẩu đang được cập nhật'),
+            backgroundColor: Colors.orange,
           ),
         );
       }
@@ -339,20 +317,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: lp.translate('privacy'),
             onTap: () {
               // TODO: Show privacy policy
-            },
-          ),
-          _buildSettingsTile(
-            icon: Icons.logout,
-            title: lp.translate('logout'),
-            onTap: () async {
-              await FirebaseAuth.instance.signOut();
-              if (mounted) {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (route) => false,
-                );
-              }
             },
           ),
         ],

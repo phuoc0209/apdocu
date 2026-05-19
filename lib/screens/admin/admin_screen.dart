@@ -105,8 +105,8 @@ class _AdminScreenState extends State<AdminScreen> {
           ),
         ),
       ),
-      body: StreamBuilder<List<ProductModel>>(
-        stream: _productService.getPendingProducts(),
+      body: FutureBuilder<List<ProductModel>>(
+        future: _productService.getPendingProducts(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

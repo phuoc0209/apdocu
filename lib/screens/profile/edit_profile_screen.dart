@@ -3,11 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:typed_data';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
-import '../../services/firestore_image_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({Key? key}) : super(key: key);
@@ -23,10 +21,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _phoneController = TextEditingController();
   
   final AuthService _authService = AuthService();
-  final FirestoreImageService _imageService = FirestoreImageService();
   final ImagePicker _picker = ImagePicker();
   
-  User? _currentUser;
+  UserModel? _currentUser;
   UserModel? _userData;
   bool _isLoading = true;
   bool _isSaving = false;
@@ -48,24 +45,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _loadUserData() async {
-    _currentUser = FirebaseAuth.instance.currentUser;
+    _currentUser = _authService.currentUser;
     if (_currentUser != null) {
-      final data = await _authService.getUserData(_currentUser!.uid);
-      
-      // Load profile image from Firestore
-      String? photoURL;
-      try {
-        photoURL = await _imageService.getProfileImage(_currentUser!.uid);
-      } catch (e) {
-        print('Error loading profile image: $e');
-      }
+      // In a real app, we might fetch fresh data from API
+      // final data = await _authService.getUserData(_currentUser!.uid);
+      final data = _currentUser;
       
       setState(() {
         _userData = data;
         _displayNameController.text = data?.displayName ?? '';
         _bioController.text = data?.bio ?? '';
         _phoneController.text = data?.phoneNumber ?? '';
-        _currentPhotoURL = photoURL;
+        _currentPhotoURL = data?.photoURL;
         _isLoading = false;
       });
     } else {
@@ -100,22 +91,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (_selectedImage == null) return _currentPhotoURL;
 
     try {
-      print('Starting profile image upload to Firestore...');
+      print('Starting profile image upload to API...');
       
-      // Upload and save to Firestore (returns base64 data URL)
-      await _imageService.uploadProfileImage(
-        _selectedImage!,
-        _currentUser!.uid,
-      );
+      // TODO: Implement API image upload
+      // final imageUrl = await _apiService.uploadImage(_selectedImage!);
+      // return imageUrl;
       
-      print('Profile image saved successfully to Firestore');
-      
-      final refreshedPhoto = await _imageService.getProfileImage(_currentUser!.uid);
-      setState(() {
-        _currentPhotoURL = refreshedPhoto;
-      });
-
-      return refreshedPhoto;
+      // For now, just return null or simulate success
+      return _currentPhotoURL;
     } catch (e) {
       print('Upload profile image error: $e');
       if (mounted) {
@@ -136,7 +119,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isSaving = true);
 
     try {
-      // Upload image if selected (saves to Firestore separately)
+      // Upload image if selected
       if (_selectedImage != null) {
         await _uploadProfileImage();
         if (mounted) {
@@ -146,12 +129,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         }
       }
 
-      // Update user data (WITHOUT photoURL - it's stored separately)
+      // Update user data
       final updatedUser = _userData!.copyWith(
         displayName: _displayNameController.text.trim(),
         bio: _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
         phoneNumber: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
-        // DON'T update photoURL here - it's too long for Firestore field
       );
 
       await _authService.updateUserProfile(updatedUser);

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import '../../models/product_model.dart';
+import '../../models/user_model.dart';
 import '../../services/product_service.dart';
+import '../../services/auth_service.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({Key? key}) : super(key: key);
@@ -15,9 +16,16 @@ class ProductListScreen extends StatefulWidget {
 
 class _ProductListScreenState extends State<ProductListScreen> {
   final ProductService _productService = ProductService();
-  final User? currentUser = FirebaseAuth.instance.currentUser;
+  final AuthService _authService = AuthService();
+  UserModel? currentUser;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    currentUser = _authService.currentUser;
+  }
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
@@ -415,8 +423,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   _buildBuyingOptionCard(),
                   const SizedBox(height: 18),
                   Expanded(
-                    child: StreamBuilder<List<ProductModel>>(
-                      stream: _productService.getUserProducts(currentUser!.uid),
+                    child: FutureBuilder<List<ProductModel>>(
+                      future: _productService.getUserProducts(currentUser!.uid),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
                           return const Center(child: CircularProgressIndicator());

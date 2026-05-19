@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum ProductCategory {
   homeAppliances, // đồ gia dụng
   fashion, // thời trang
@@ -22,6 +20,27 @@ enum ProductStatus {
   soldOut, // đã trao đổi
 }
 
+class ProductLocation {
+  final double latitude;
+  final double longitude;
+
+  ProductLocation({required this.latitude, required this.longitude});
+
+  Map<String, dynamic> toMap() {
+    return {
+      'latitude': latitude,
+      'longitude': longitude,
+    };
+  }
+
+  factory ProductLocation.fromMap(Map<String, dynamic> map) {
+    return ProductLocation(
+      latitude: (map['latitude'] is int) ? (map['latitude'] as int).toDouble() : (map['latitude'] ?? 0.0),
+      longitude: (map['longitude'] is int) ? (map['longitude'] as int).toDouble() : (map['longitude'] ?? 0.0),
+    );
+  }
+}
+
 class ProductModel {
   final String id;
   final String title;
@@ -33,7 +52,7 @@ class ProductModel {
   final String ownerId;
   final String ownerName;
   final String? ownerPhotoURL;
-  final GeoPoint? location;
+  final ProductLocation? location;
   final String? locationAddress;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -71,7 +90,7 @@ class ProductModel {
       'ownerId': ownerId,
       'ownerName': ownerName,
       'ownerPhotoURL': ownerPhotoURL,
-      'location': location,
+      'location': location?.toMap(),
       'locationAddress': locationAddress,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt.millisecondsSinceEpoch,
@@ -92,18 +111,13 @@ class ProductModel {
       ownerId: map['ownerId'] ?? '',
       ownerName: map['ownerName'] ?? '',
       ownerPhotoURL: map['ownerPhotoURL'],
-      location: map['location'] as GeoPoint?,
+      location: map['location'] != null ? ProductLocation.fromMap(map['location']) : null,
       locationAddress: map['locationAddress'],
-      createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
-      updatedAt: DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] ?? 0),
-      viewCount: map['viewCount'] ?? 0,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] is int ? map['createdAt'] : int.parse(map['createdAt'].toString())),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] is int ? map['updatedAt'] : int.parse(map['updatedAt'].toString())),
+      viewCount: int.tryParse(map['viewCount'].toString()) ?? 0,
       tags: List<String>.from(map['tags'] ?? []),
     );
-  }
-
-  factory ProductModel.fromDocument(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return ProductModel.fromMap({...data, 'id': doc.id});
   }
 
   static ProductCategory _categoryFromString(String? category) {
@@ -162,7 +176,7 @@ class ProductModel {
     String? ownerId,
     String? ownerName,
     String? ownerPhotoURL,
-    GeoPoint? location,
+    ProductLocation? location,
     String? locationAddress,
     DateTime? createdAt,
     DateTime? updatedAt,

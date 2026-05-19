@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:intl/intl.dart';
 
 import '../../models/message_model.dart';
+import '../../models/user_model.dart';
 import '../../services/chat_service.dart';
+import '../../services/auth_service.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({Key? key}) : super(key: key);
@@ -16,7 +17,7 @@ class ChatListScreen extends StatefulWidget {
 
 class _ChatListScreenState extends State<ChatListScreen> {
   final ChatService _chatService = ChatService();
-  final User? _currentUser = FirebaseAuth.instance.currentUser;
+  final UserModel? _currentUser = AuthService().currentUser;
   final TextEditingController _searchController = TextEditingController();
 
   String _searchQuery = '';
@@ -148,18 +149,75 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 ],
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                if (chat.lastMessageTime != null)
-                  Text(
-                    _formatChatTime(chat.lastMessageTime),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF8389A8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (chat.lastMessageTime != null)
+                      Text(
+                        _formatChatTime(chat.lastMessageTime),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF8389A8),
+                        ),
+                      ),
+                    PopupMenuButton<String>(
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(
+                        Icons.more_vert,
+                        size: 18,
+                        color: Color(0xFFB0B4D4),
+                      ),
+                      onSelected: (value) async {
+                        if (value == 'delete') {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Xóa cuộc trò chuyện'),
+                              content: const Text(
+                                  'Bạn có chắc muốn xóa toàn bộ tin nhắn với người này không?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(false),
+                                  child: const Text('Hủy'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(true),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.red,
+                                  ),
+                                  child: const Text('Xóa'),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (confirm == true) {
+                            try {
+                              await _chatService.deleteChat(chat.id);
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Không thể xóa cuộc trò chuyện: $e'),
+                                ),
+                              );
+                            }
+                          }
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Text('Xóa cuộc trò chuyện'),
+                        ),
+                      ],
                     ),
-                  ),
+                  ],
+                ),
                 const SizedBox(height: 8),
                 if (isUnread)
                   Container(
@@ -283,8 +341,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
               ),
             ),
             Expanded(
-              child: StreamBuilder<List<ChatModel>>(
-                stream: _chatService.getUserChats(_currentUser!.uid),
+              child: FutureBuilder<List<ChatModel>>(
+                future: _chatService.getUserChats(_currentUser!.uid),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());

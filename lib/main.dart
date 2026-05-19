@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:timeago/timeago.dart' as timeago;
-import 'firebase_options.dart';
 import 'utils/theme_notifier.dart';
 import 'utils/language_provider.dart';
+import 'services/auth_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/main_screen.dart';
@@ -16,26 +14,21 @@ import 'screens/admin/admin_screen.dart';
 import 'screens/profile/edit_profile_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/admin/user_management_screen.dart';
+import 'screens/profile/public_profile_screen.dart';
 import 'models/product_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  } catch (e) {
-    print('Firebase initialization error: $e');
-  }
-
   // Setup Vietnamese locale for timeago
   timeago.setLocaleMessages('vi', timeago.ViMessages());
   
   // Load theme and language
   await ThemeNotifier().loadTheme();
   await LanguageProvider().loadLanguage();
+
+  // Initialize Auth Service (load user from local storage)
+  await AuthService().initialize();
 
   runApp(const MyApp());
 }
@@ -163,6 +156,15 @@ class _MyAppState extends State<MyApp> {
         '/edit-profile': (context) => const EditProfileScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/user-management': (context) => const UserManagementScreen(),
+        '/public-profile': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+          if (args is String) {
+            return PublicProfileScreen(userId: args);
+          }
+          return const Scaffold(
+            body: Center(child: Text('Thiếu thông tin người dùng')),
+          );
+        },
       },
       onGenerateRoute: (settings) {
         // Handle routes with arguments

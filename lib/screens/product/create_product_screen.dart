@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:typed_data';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/product_model.dart';
 import '../../services/product_service.dart';
@@ -122,7 +120,7 @@ class _CreateProductScreenState extends State<CreateProductScreen> {
 
     try {
       print('Starting save product...');
-      final user = FirebaseAuth.instance.currentUser;
+      final user = _authService.currentUser;
       if (user == null) throw Exception('Chưa đăng nhập');
 
       final userData = await _authService.getUserData(user.uid);
@@ -156,7 +154,7 @@ class _CreateProductScreenState extends State<CreateProductScreen> {
           ownerName: userData.displayName,
           ownerPhotoURL: userData.photoURL,
           location: _useLocation && _currentPosition != null
-              ? GeoPoint(_currentPosition!.latitude, _currentPosition!.longitude)
+              ? ProductLocation(latitude: _currentPosition!.latitude, longitude: _currentPosition!.longitude)
               : null,
           locationAddress: resolvedAddress,
           createdAt: DateTime.now(),
@@ -168,7 +166,7 @@ class _CreateProductScreenState extends State<CreateProductScreen> {
         await _productService.createProduct(product, _selectedImages);
         print('Product created successfully');
 
-        // Tạo thông báo chờ duyệt
+        // Tạo thông báo chờ duyệt (lưu vào lịch sử)
         await _notificationService.addNotification(
           AppNotification(
             id: const Uuid().v4(),
@@ -191,7 +189,7 @@ class _CreateProductScreenState extends State<CreateProductScreen> {
           category: _selectedCategory,
           condition: _selectedCondition,
           location: _useLocation && _currentPosition != null
-              ? GeoPoint(_currentPosition!.latitude, _currentPosition!.longitude)
+              ? ProductLocation(latitude: _currentPosition!.latitude, longitude: _currentPosition!.longitude)
               : null,
           locationAddress: resolvedAddress,
           tags: tags,
@@ -205,14 +203,34 @@ class _CreateProductScreenState extends State<CreateProductScreen> {
       }
 
       if (mounted) {
+        // Toast nổi 3 giây ở trên cùng
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(widget.product == null
-                ? 'Đã đăng sản phẩm. Chờ admin duyệt.'
-                : 'Đã cập nhật sản phẩm'),
-            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            duration: const Duration(seconds: 3),
+            backgroundColor: const Color(0xFF4CAF50),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_outline,
+                    color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.product == null
+                        ? 'Đã đăng sản phẩm, chờ admin duyệt. Thông báo đã lưu trong mục Thông báo.'
+                        : 'Đã cập nhật sản phẩm thành công.',
+                  ),
+                ),
+              ],
+            ),
           ),
         );
+
         Navigator.pop(context, true); // Return true to indicate success
       }
     } catch (e) {

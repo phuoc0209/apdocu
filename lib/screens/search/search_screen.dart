@@ -21,6 +21,8 @@ class _SearchScreenState extends State<SearchScreen> {
   final FocusNode _searchFocusNode = FocusNode();
 
   List<ProductModel> _searchResults = [];
+  List<ProductModel> _suggestions = [];
+  List<ProductModel> _featuredProducts = [];
   bool _isLoading = false;
   bool _showFilters = false;
 
@@ -34,6 +36,7 @@ class _SearchScreenState extends State<SearchScreen> {
   void initState() {
     super.initState();
     _getUserLocation();
+    _loadFeaturedProducts();
   }
 
   @override
@@ -48,6 +51,28 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() {
       _userPosition = position;
     });
+  }
+
+  // Tải danh sách sản phẩm nổi bật/đang còn để hiển thị mặc định
+  Future<void> _loadFeaturedProducts() async {
+    try {
+      // Tạm thời dùng searchProducts không keyword, không filter để lấy danh sách đã duyệt
+      final results = await _productService.searchProducts(
+        keyword: null,
+        category: null,
+        condition: null,
+        userPosition: null,
+        maxDistance: null,
+      );
+
+      // Sắp xếp theo lượt xem giảm dần và lấy tối đa 12 sản phẩm nổi bật
+      results.sort((a, b) => b.viewCount.compareTo(a.viewCount));
+      setState(() {
+        _featuredProducts = results.take(12).toList();
+      });
+    } catch (e) {
+      debugPrint('Load featured products error: $e');
+    }
   }
 
   Future<void> _search() async {
@@ -66,6 +91,8 @@ class _SearchScreenState extends State<SearchScreen> {
 
       setState(() {
         _searchResults = results;
+        // Khi đã bấm search, ẩn danh sách gợi ý để chỉ còn kết quả chính
+        _suggestions = [];
       });
     } catch (e) {
       if (mounted) {
@@ -141,7 +168,7 @@ class _SearchScreenState extends State<SearchScreen> {
                               hintText: 'Tìm kiếm sản phẩm',
                               border: InputBorder.none,
                             ),
-                            onChanged: (_) => setState(() {}),
+                            onChanged: (value) => _onSearchTextChanged(value),
                             onSubmitted: (_) => _search(),
                           ),
                         ),
@@ -149,7 +176,9 @@ class _SearchScreenState extends State<SearchScreen> {
                           GestureDetector(
                             onTap: () {
                               _searchController.clear();
-                              setState(() {});
+                              setState(() {
+                                _suggestions = [];
+                              });
                             },
                             child: const Icon(
                               Icons.close_rounded,
@@ -196,7 +225,7 @@ class _SearchScreenState extends State<SearchScreen> {
             const SizedBox(height: 20),
             Text(
               _searchController.text.isEmpty
-                  ? 'Khám phá những món đồ phù hợp'
+                  ? 'Khám phá những món đồ nổi bật'
                   : 'Kết quả cho "${_searchController.text}"',
               style: const TextStyle(
                 color: Colors.white,
@@ -433,6 +462,52 @@ class _SearchScreenState extends State<SearchScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    // Nếu không có từ khóa và không có kết quả tìm kiếm, hiển thị danh sách nổi bật
+    if (_searchController.text.isEmpty && _searchResults.isEmpty) {
+      if (_featuredProducts.isEmpty) {
+        final horizontalPadding = (MediaQuery.of(context).size.width * 0.18)
+            .clamp(24.0, 120.0);
+
+        return Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+            child: const Text(
+              'Chưa có sản phẩm nổi bật để hiển thị.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFF9AA0C2),
+                fontSize: 15,
+              ),
+            ),
+          ),
+        );
+      }
+
+      return GridView.builder(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 18,
+          childAspectRatio: 0.72,
+        ),
+        itemCount: _featuredProducts.length,
+        itemBuilder: (context, index) {
+          final product = _featuredProducts[index];
+          return ProductCard(
+            product: product,
+            onTap: () {
+              Navigator.pushNamed(
+                context,
+                '/product-detail',
+                arguments: product.id,
+              );
+            },
+          );
+        },
+      );
+    }
+
     if (_searchResults.isEmpty) {
       final horizontalPadding = (MediaQuery.of(context).size.width * 0.18)
           .clamp(24.0, 120.0);
@@ -485,9 +560,83 @@ class _SearchScreenState extends State<SearchScreen> {
         children: [
           _buildSearchAppBar(),
           _buildFilterSection(),
-          Expanded(child: _buildResultList()),
+          // Nếu đang gõ và có gợi ý, ưu tiên hiển thị gợi ý; nếu đã search, hiển thị kết quả
+          Expanded(
+            child: _suggestions.isNotEmpty && _searchController.text.isNotEmpty
+                ? _buildSuggestionList()
+                : _buildResultList(),
+          ),
         ],
       ),
+    );
+  }
+
+  // Gọi mỗi khi text thay đổi để tải gợi ý nhẹ
+  Future<void> _onSearchTextChanged(String value) async {
+    setState(() {}); // cập nhật text hiển thị tiêu đề
+
+    final query = value.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _suggestions = [];
+        // Khi xóa hết text, cũng xóa kết quả tìm kiếm để quay về danh sách nổi bật
+        _searchResults = [];
+      });
+      return;
+    }
+
+    try {
+      // Tận dụng searchProducts nhưng không áp dụng filter khoảng cách
+      final results = await _productService.searchProducts(
+        keyword: query,
+        category: _selectedCategory,
+        condition: _selectedCondition,
+        userPosition: null,
+        maxDistance: null,
+      );
+
+      // Chỉ lấy tối đa 8 gợi ý để danh sách gọn
+      setState(() {
+        _suggestions = results.take(8).toList();
+      });
+    } catch (e) {
+      // Không hiện snackbar liên tục khi đang gõ, chỉ log nhẹ
+      debugPrint('Search suggestion error: $e');
+    }
+  }
+
+  Widget _buildSuggestionList() {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      itemCount: _suggestions.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final product = _suggestions[index];
+        return ListTile(
+          leading: const Icon(Icons.search, color: Color(0xFF7D5CF7)),
+          title: Text(
+            product.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(
+            product.categoryDisplayName,
+            style: const TextStyle(fontSize: 12, color: Color(0xFF8389A8)),
+          ),
+          onTap: () {
+            // Đi tới trang chi tiết sản phẩm và ẩn gợi ý
+            Navigator.pushNamed(
+              context,
+              '/product-detail',
+              arguments: product.id,
+            );
+            setState(() {
+              _suggestions = [];
+              _searchController.text = product.title;
+            });
+          },
+        );
+      },
     );
   }
 }
